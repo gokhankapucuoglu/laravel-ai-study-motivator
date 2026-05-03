@@ -23,6 +23,8 @@ class ManageStudyLogs extends ManageRecords
                 ->after(function ($record) {
                     $user = Auth::user();
 
+                    $currentLocale = app()->getLocale();
+
                     // Laravel AI SDK 13.x Ajanımızı başlatıyoruz
                     $agent = new MotivationAgent();
 
@@ -33,11 +35,13 @@ class ManageStudyLogs extends ManageRecords
                         ->queue($prompt)
                         ->catch(function (\Throwable $e) use ($user) {
                             // Gemini 503 Yoğunluk Hatası veya Bağlantı Kopması Durumunda
-                            Log::warning('Gemini yoğun, tekrar denenecek...');
+                            Log::warning('Yapay zeka yoğun, tekrar denenecek...');
 
                             throw $e;
                         })
-                        ->then(function ($response) use ($user, $record) {
+                        ->then(function ($response) use ($user, $record, $currentLocale) {
+                            app()->setLocale($currentLocale);
+
                             $aiText = $response->text; // DİKKAT: Metot olduğu için () eklendi
 
                             // 1. Veritabanındaki 'ai_feedback' sütununu güncelle (Tabloda görünmesi için)
@@ -47,11 +51,15 @@ class ManageStudyLogs extends ManageRecords
 
                             // 2. Arka planda analiz bitince veritabanı bildirimi atıyoruz
                             Notification::make()
-                                ->title("$record->topic Yapay Zeka Analizin Hazır! 🤖")
+                                ->title("{$record->topic} (#{$record->id}) " . __('study.analysis_ready'))
                                 ->body(Str::limit($aiText, 100, '...'))
                                 ->success()
                                 ->actions([
-                                    Action::make('markAsRead')->label('Okundu')->color('secondary')->markAsRead(),
+                                    Action::make('view_logs')
+                                        ->label(__('study.go_to_logs'))
+                                        ->button() // Görünümü link değil, buton yapar
+                                        ->url(url('/admin/study-logs')),
+                                    Action::make('markAsRead')->label(__('study.mark_as_read'))->color('secondary')->markAsRead(),
                                 ])
 
                                 ->sendToDatabase($user);
