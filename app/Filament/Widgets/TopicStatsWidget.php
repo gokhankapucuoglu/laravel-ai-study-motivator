@@ -53,35 +53,45 @@ class TopicStatsWidget extends BaseWidget implements HasActions
 
         $stats = [];
 
-        foreach ($logs as $log) {
-            // Dakikayı Saate Çevirme Formülü
+        // 1. DİKKAT: foreach içine $index ekliyoruz!
+        foreach ($logs as $index => $log) {
+
+            // Saat ve dakika hesaplamaları
             $minutes = $log->total_duration;
             $hours = floor($minutes / 60);
             $mins = $minutes % 60;
+            $timeText = ($hours > 0 ? "{$hours} " . __('study.hours') . " " : "") . "{$mins} " . __('study.mins');
 
-            $hoursLabel = __('study.hours');
-            $minsLabel = __('study.mins');
-
-            $timeText = ($hours > 0 ? "{$hours} {$hoursLabel} " : "") . "{$mins} {$minsLabel}";
-
-            // 2. DEĞİŞİKLİK: Tarihleri kontrol edip metin oluşturuyoruz
+            // Tarih hesaplamaları
             $firstDate = \Carbon\Carbon::parse($log->first_study_date);
             $lastDate = \Carbon\Carbon::parse($log->last_study_date);
+            $dateRangeText = $firstDate->isSameDay($lastDate)
+                ? $firstDate->format('d.m.Y')
+                : $firstDate->format('d.m.Y') . ' - ' . $lastDate->format('d.m.Y');
 
-            // Eğer aynı gün çalışılmışsa tek tarih (Örn: 01.05.2026)
-            // Farklı günlerse aralık göster (Örn: 26.04.2026 - 01.05.2026)
-            if ($firstDate->isSameDay($lastDate)) {
-                $dateRangeText = $firstDate->format('d.m.Y');
-            } else {
-                $dateRangeText = $firstDate->format('d.m.Y') . ' - ' . $lastDate->format('d.m.Y');
-            }
+            // 2. KUSURSUZ SIRALI RENK ATAMASI (crc32 SİLİNDİ)
+            $availableColors = ['info', 'warning', 'success', 'danger', 'primary'];
 
-            // Stat Kartını Oluşturma
+            // 3. Rengi doğrudan döngünün sırasına ($index) göre alıyoruz
+            $color = $availableColors[$index % count($availableColors)];
+
+            $bgStyle = match ($color) {
+                'info'    => 'background-color: rgba(59, 130, 246, 0.08);', // Mavi
+                'warning' => 'background-color: rgba(234, 179, 8, 0.08);',  // Sarı
+                'success' => 'background-color: rgba(34, 197, 94, 0.08);',  // Yeşil
+                'danger'  => 'background-color: rgba(239, 68, 68, 0.08);',  // Kırmızı
+                'primary' => 'background-color: rgba(245, 158, 11, 0.08);', // Amber
+                default   => '',
+            };
+
             $stats[] = Stat::make($log->topic, trim($timeText))
-                ->icon('heroicon-m-book-open') // Konu ikonunu kitap ile değiştirdik
-                ->description($dateRangeText) // Statik metin yerine dinamik tarih değişkenimizi koyduk
-                ->descriptionIcon('heroicon-m-calendar-days') // İkonu takvim ile değiştirdik
-                ->color('gray'); // Tarihlerin gözü yormaması için rengi gri yaptık
+                ->icon('heroicon-m-book-open')
+                ->description($dateRangeText)
+                ->descriptionIcon('heroicon-m-calendar-days')
+                ->color($color)
+                ->extraAttributes([
+                    'style' => $bgStyle,
+                ]);
         }
 
         return $stats;
